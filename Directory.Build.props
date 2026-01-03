@@ -1,0 +1,100 @@
+<Project>
+  <!-- JD.Worker - Common Build Properties -->
+  
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest</AnalysisLevel>
+    
+    <!-- Documentation -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn> <!-- Remove when docs are complete -->
+    
+    <!-- Deterministic builds -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    
+    <!-- Versioning -->
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    
+    <!-- Package metadata -->
+    <Authors>JD</Authors>
+    <Company>JD</Company>
+    <Product>JD.Worker</Product>
+    <Copyright>Copyright (c) 2025 JD</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/JerrettDavis/JD.Worker</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/JerrettDavis/JD.Worker.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>worker;job;queue;distributed;aot</PackageTags>
+  </PropertyGroup>
+
+  <!-- AOT Configuration -->
+  <PropertyGroup Condition="'$(PublishAot)' == 'true'">
+    <PublishAot>true</PublishAot>
+    <TrimMode>link</TrimMode>
+    <IlcOptimizationPreference>Speed</IlcOptimizationPreference>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <StripSymbols>true</StripSymbols>
+  </PropertyGroup>
+
+  <!-- Trimming warnings -->
+  <PropertyGroup>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+  </PropertyGroup>
+
+  <!-- Test projects -->
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <IsPackable>false</IsPackable>
+    <IsPublishable>false</IsPublishable>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+  </PropertyGroup>
+
+  <!-- Orchestrator projects are not AOT-trimmed -->
+  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('JD.Worker.Orchestrator'))">
+    <IsTrimmable>false</IsTrimmable>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);IL2026;IL3050;IL2111</WarningsNotAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'JD.Worker.Configuration'">
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);IL2026;IL3050</WarningsNotAsErrors>
+  </PropertyGroup>
+
+  <!-- Source Link -->
+  <PropertyGroup>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <!-- Disable SourceLink when no git metadata exists -->
+  <PropertyGroup Condition="!Exists('$(MSBuildThisFileDirectory).git')">
+    <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
+    <SourceLinkCreate>false</SourceLinkCreate>
+    <SuppressSourceLinkWarnings>true</SuppressSourceLinkWarnings>
+  </PropertyGroup>
+
+  <ItemGroup Condition="Exists('$(MSBuildThisFileDirectory).git')">
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All"/>
+  </ItemGroup>
+
+</Project>

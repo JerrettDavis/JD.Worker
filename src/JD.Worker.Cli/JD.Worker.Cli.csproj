@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\JD.Worker.Core\JD.Worker.Core.csproj" />
+    <ProjectReference Include="..\Connectors\JD.Worker.Connectors.Http\JD.Worker.Connectors.Http.csproj" />
+    <ProjectReference Include="..\Connectors\JD.Worker.Connectors.Local\JD.Worker.Connectors.Local.csproj" />
+    <ProjectReference Include="..\JD.Worker.Configuration\JD.Worker.Configuration.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="System.CommandLine" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="worker.yaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="worker-host-a.yaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="worker-host-b.yaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="worker-docker.yaml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

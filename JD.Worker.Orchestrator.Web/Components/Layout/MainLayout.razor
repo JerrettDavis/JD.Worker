@@ -1,0 +1,54 @@
+@inherits LayoutComponentBase
+@inject IJSRuntime Js
+
+<div class="app-shell">
+    <aside class="sidebar">
+        <NavMenu />
+    </aside>
+    <div class="main-panel">
+        <header class="top-bar">
+            <div class="top-bar__left">
+                <p class="top-bar__eyebrow">Control room</p>
+                <div class="top-bar__title">JD.Worker Orchestrator</div>
+            </div>
+            <div class="top-bar__right">
+                <select class="input input--compact theme-select" @bind="ThemeMode" @bind:after="ApplyThemeAsync" aria-label="Theme">
+                    <option value="system">System</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                </select>
+                <a class="btn-primary btn-primary--small" href="assign">New job</a>
+            </div>
+        </header>
+        <main class="content">
+            @Body
+        </main>
+    </div>
+</div>
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+@code {
+    private string ThemeMode { get; set; } = "system";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        var stored = await Js.InvokeAsync<string>("themeManager.getTheme");
+        ThemeMode = string.IsNullOrWhiteSpace(stored) ? "system" : stored;
+        StateHasChanged();
+    }
+
+    private async Task ApplyThemeAsync()
+    {
+        await Js.InvokeVoidAsync("themeManager.setTheme", ThemeMode);
+    }
+}

@@ -1,0 +1,19 @@
+worker:
+  id: host-agent-02
+  labels:
+    execution: host
+    runtime: direct
+  pools:
+    - name: default
+      concurrency: 1
+  workspace:
+    root: ./workspaces/host-b
+    cleanup: immediate
+  sandbox: none
+cnc:
+  - name: orchestrator
+    type: Http
+    settings:
+      baseUrl: ${JD_WORKER_API_URL}
+      pollIntervalSeconds: 2
+      leaseSeconds: 300

@@ -1,0 +1,244 @@
+@page "/running"
+@using JD.Worker.Abstractions
+@using JD.Worker.Core
+@inject OrchestratorApiClient Api
+@implements IDisposable
+
+<PageTitle>Running</PageTitle>
+
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Running</p>
+        <h1>Live worker activity</h1>
+    </div>
+    <div class="page-header__actions">
+        <button class="btn-ghost">Pause intake</button>
+        <button class="btn-primary">Scale workers</button>
+    </div>
+</section>
+
+<section class="surface-card">
+    <div class="card-head">
+        <h2>Worker fleet</h2>
+        <div class="inline-badges">
+            <span class="pill">@OnlineWorkers.Count online</span>
+            <span class="pill pill--dark">@IdleWorkers.Count idle</span>
+        </div>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Worker</th>
+                <th>Pool</th>
+                <th>Status</th>
+                <th>Current job</th>
+                <th>Uptime</th>
+                <th>Last heartbeat</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Workers.Count == 0)
+            {
+                <tr>
+                    <td colspan="6" class="muted">No workers have reported yet.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var worker in Workers)
+                {
+                    <tr>
+                        <td>
+                            <div class="cell-title">@worker.WorkerId</div>      
+                            <div class="cell-subtitle">@FormatLabels(worker.Labels)</div>
+                        </td>
+                        <td>@(string.IsNullOrWhiteSpace(worker.Pool) ? "default" : worker.Pool)</td>
+                        <td><span class="tag @GetStatusClass(worker)">@GetStatusLabel(worker)</span></td>
+                        <td>@(string.IsNullOrWhiteSpace(worker.CurrentJobId) ? "—" : worker.CurrentJobId)</td>
+                        <td>—</td>
+                        <td>@FormatRelative(worker.LastHeartbeatUtc)</td>       
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</section>
+
+<section class="grid grid--two">
+    <article class="surface-card" style="--delay: 0ms">
+        <div class="card-head">
+            <h2>Runtime signals</h2>
+            <span class="pill">Last 15 min</span>
+        </div>
+        <div class="signal">
+            <div>
+                <p class="signal-label">Active workers</p>
+                <p class="signal-value">@OnlineWorkers.Count</p>
+            </div>
+            <div>
+                <p class="signal-label">Jobs running</p>
+                <p class="signal-value">@RunningJobsCount</p>
+            </div>
+            <div>
+                <p class="signal-label">Queue depth</p>
+                <p class="signal-value">@QueuedJobsCount</p>
+            </div>
+        </div>
+    </article>
+    <article class="surface-card" style="--delay: 120ms">
+        <div class="card-head">
+            <h2>Activity log</h2>
+            <a class="btn-link" href="jobs">View all</a>
+        </div>
+        @if (RecentActivity.Count == 0)
+        {
+            <p class="muted">No activity recorded yet.</p>
+        }
+        else
+        {
+            <ul class="activity">
+                @foreach (var entry in RecentActivity)
+                {
+                    <li>
+                        <span class="status-dot @entry.DotClass"></span>
+                        @entry.Message
+                        <span class="muted">· @entry.Ago</span>
+                    </li>
+                }
+            </ul>
+        }
+    </article>
+</section>
+
+@code {
+    private readonly TimeSpan _onlineThreshold = TimeSpan.FromSeconds(20);
+    private readonly TimeSpan _refreshInterval = TimeSpan.FromSeconds(10);
+    private CancellationTokenSource? _refreshCts;
+    private IReadOnlyList<WorkerRegistration> Workers { get; set; } = Array.Empty<WorkerRegistration>();
+    private IReadOnlyList<JobRecord> Jobs { get; set; } = Array.Empty<JobRecord>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+        StartRefreshLoop();
+    }
+
+    private IReadOnlyList<WorkerRegistration> OnlineWorkers =>
+        Workers.Where(IsOnline).ToList();
+
+    private IReadOnlyList<WorkerRegistration> IdleWorkers =>
+        OnlineWorkers.Where(worker => worker.Status == WorkerStatus.Idle).ToList();
+
+    private int RunningJobsCount => Jobs.Count(job => job.State == JobState.Running);
+    private int QueuedJobsCount => Jobs.Count(job =>
+        job.State == JobState.Accepted || job.State == JobState.Received || job.State == JobState.Leased);
+
+    private IReadOnlyList<ActivityEntry> RecentActivity =>
+        Jobs.OrderByDescending(job => job.UpdatedUtc)
+            .Take(4)
+            .Select(job => new ActivityEntry(
+                $"Job {job.JobId} {job.State}",
+                FormatRelative(job.UpdatedUtc),
+                job.State == JobState.Failed ? "status-dot--warn" : "status-dot--ok"))
+            .ToList();
+
+    private static string FormatLabels(IReadOnlyDictionary<string, string>? labels)
+    {
+        if (labels is null || labels.Count == 0)
+        {
+            return "labels: —";
+        }
+
+        return string.Join(" · ", labels.Select(label => $"{label.Key}:{label.Value}"));
+    }
+
+    private string GetStatusLabel(WorkerRegistration worker) =>
+        IsOnline(worker) ? worker.Status.ToString() : "Offline";
+
+    private string GetStatusClass(WorkerRegistration worker) =>
+        IsOnline(worker) ? GetStatusClass(worker.Status) : "tag--offline";
+
+    private static string GetStatusClass(WorkerStatus status) => status switch
+    {
+        WorkerStatus.Running => "tag--run",
+        WorkerStatus.Busy => "tag--warn",
+        WorkerStatus.Idle => "tag--idle",
+        _ => "tag--ok"
+    };
+
+    private bool IsOnline(WorkerRegistration worker) =>
+        worker.Status != WorkerStatus.Unknown &&
+        DateTimeOffset.UtcNow - worker.LastHeartbeatUtc <= _onlineThreshold;
+
+    private async Task RefreshAsync()
+    {
+        IReadOnlyList<WorkerRegistration> workers;
+        IReadOnlyList<JobRecord> jobs;
+
+        try
+        {
+            var workerTask = Api.GetWorkersAsync();
+            var jobTask = Api.GetJobsAsync();
+            await Task.WhenAll(workerTask, jobTask);
+
+            workers = workerTask.Result.OrderBy(worker => worker.WorkerId).ToList();
+            jobs = jobTask.Result;
+        }
+        catch
+        {
+            return;
+        }
+
+        await InvokeAsync(() =>
+        {
+            Workers = workers;
+            Jobs = jobs;
+            StateHasChanged();
+        });
+    }
+
+    private void StartRefreshLoop()
+    {
+        _refreshCts?.Cancel();
+        _refreshCts = new CancellationTokenSource();
+        _ = Task.Run(() => RefreshLoopAsync(_refreshCts.Token));
+    }
+
+    private async Task RefreshLoopAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(_refreshInterval);
+        while (await timer.WaitForNextTickAsync(cancellationToken))
+        {
+            await RefreshAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        _refreshCts?.Cancel();
+        _refreshCts?.Dispose();
+    }
+
+    private static string FormatRelative(DateTimeOffset timestamp)
+    {
+        var delta = DateTimeOffset.UtcNow - timestamp;
+        if (delta.TotalSeconds < 60)
+        {
+            return $"{Math.Max(1, delta.Seconds)}s ago";
+        }
+
+        if (delta.TotalMinutes < 60)
+        {
+            return $"{delta.Minutes}m ago";
+        }
+
+        if (delta.TotalHours < 24)
+        {
+            return $"{delta.Hours}h ago";
+        }
+
+        return $"{delta.Days}d ago";
+    }
+
+    private sealed record ActivityEntry(string Message, string Ago, string DotClass);
+}

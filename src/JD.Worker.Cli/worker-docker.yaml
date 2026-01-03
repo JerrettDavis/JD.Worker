@@ -1,0 +1,19 @@
+worker:
+  id: docker-agent-01
+  labels:
+    execution: docker
+    runtime: container
+  pools:
+    - name: docker
+      concurrency: 1
+  workspace:
+    root: ./workspaces/docker-1
+    cleanup: immediate
+  sandbox: container
+cnc:
+  - name: orchestrator
+    type: Http
+    settings:
+      baseUrl: ${JD_WORKER_API_URL}
+      pollIntervalSeconds: 2
+      leaseSeconds: 300

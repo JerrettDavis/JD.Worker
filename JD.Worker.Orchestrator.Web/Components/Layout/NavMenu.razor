@@ -1,0 +1,59 @@
+<div class="nav-header">
+    <div class="brand-mark">JW</div>
+    <div class="brand-text">
+        <span class="brand-title">JD.Worker</span>
+        <span class="brand-subtitle">Orchestrator</span>
+    </div>
+</div>
+
+@inject OrchestratorApiClient Api
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="nav-links">
+        <div class="nav-group">
+            <span class="nav-group-title">Operations</span>
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="nav-icon nav-icon--dashboard"></span>
+                <span>Dashboard</span>
+            </NavLink>
+            <NavLink class="nav-link" href="running">
+                <span class="nav-icon nav-icon--pulse"></span>
+                <span>Running</span>
+            </NavLink>
+            <NavLink class="nav-link" href="console">
+                <span class="nav-icon nav-icon--console"></span>
+                <span>Console</span>
+            </NavLink>
+            <NavLink class="nav-link" href="jobs">
+                <span class="nav-icon nav-icon--jobs"></span>
+                <span>Jobs</span>
+            </NavLink>
+            <NavLink class="nav-link" href="assign">
+                <span class="nav-icon nav-icon--assign"></span>
+                <span>Assign</span>
+            </NavLink>
+        </div>
+        <div class="nav-group">
+            <span class="nav-group-title">Configuration</span>
+            <NavLink class="nav-link" href="configure">
+                <span class="nav-icon nav-icon--config"></span>
+                <span>Configure</span>
+            </NavLink>
+        </div>
+    </nav>
+    <div class="nav-footer">
+        <span class="status-dot status-dot--ok"></span>
+        Workers connected: @WorkerCount
+    </div>
+</div>
+
+@code {
+    private int WorkerCount { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var workers = await Api.GetWorkersAsync();
+        WorkerCount = workers.Count;
+    }
+}

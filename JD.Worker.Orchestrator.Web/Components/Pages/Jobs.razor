@@ -1,0 +1,160 @@
+@page "/jobs"
+@using JD.Worker.Abstractions
+@using JD.Worker.Core
+@inject OrchestratorApiClient Api
+
+<PageTitle>Jobs</PageTitle>
+
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Jobs</p>
+        <h1>View and track every job</h1>
+    </div>
+    <div class="page-header__actions">
+        <button class="btn-ghost">Export</button>
+        <a class="btn-primary" href="assign">New job</a>
+    </div>
+</section>
+
+<section class="surface-card">
+    <div class="filter-bar">
+        <input class="input" placeholder="Search job id or pool" @bind="SearchTerm" />
+        <select class="input" @bind="SelectedState">
+            <option value="all">All statuses</option>
+            @foreach (var state in JobStates)
+            {
+                <option value="@state">@state</option>
+            }
+        </select>
+        <select class="input" @bind="SelectedPool">
+            <option value="all">All pools</option>
+            @foreach (var pool in Pools)
+            {
+                <option value="@pool">@pool</option>
+            }
+        </select>
+        <button class="btn-ghost" @onclick="RefreshAsync">Refresh</button>
+    </div>
+
+    @if (FilteredJobs.Count == 0)
+    {
+        <p class="muted">No jobs match the current filters.</p>
+    }
+    else
+    {
+        @foreach (var job in FilteredJobs)
+        {
+            <a class="job-row job-row--link" href="@($"jobs/{job.JobId}")">
+                <div>
+                    <p class="job-title">@job.JobId</p>
+                    <p class="job-meta">pool: @GetPool(job) · attempt @job.Attempt · @job.Envelope.Payload.Steps.Count steps</p>
+                </div>
+                <div class="job-info">
+                    <span class="tag @GetTagClass(job.State)">@job.State</span>
+                    <span class="muted">updated @FormatRelative(job.UpdatedUtc)</span>
+                </div>
+            </a>
+        }
+    }
+</section>
+
+@code {
+    private IReadOnlyList<JobRecord> JobList { get; set; } = Array.Empty<JobRecord>();
+    private string SearchTerm { get; set; } = string.Empty;
+    private string SelectedState { get; set; } = "all";
+    private string SelectedPool { get; set; } = "all";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+    }
+
+    private IReadOnlyList<JobRecord> FilteredJobs =>
+        JobList.Where(job => MatchesSearch(job))
+            .Where(job => MatchesState(job))
+            .Where(job => MatchesPool(job))
+            .OrderByDescending(job => job.UpdatedUtc)
+            .ToList();
+
+    private IReadOnlyList<string> Pools =>
+        JobList.Select(GetPool)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(pool => pool)
+            .ToList();
+
+    private static IReadOnlyList<string> JobStates =>
+        Enum.GetNames<JobState>()
+            .OrderBy(state => state)
+            .ToList();
+
+    private async Task RefreshAsync()
+    {
+        JobList = await Api.GetJobsAsync();
+    }
+
+    private bool MatchesSearch(JobRecord job)
+    {
+        if (string.IsNullOrWhiteSpace(SearchTerm))
+        {
+            return true;
+        }
+
+        var term = SearchTerm.Trim();
+        return job.JobId.Contains(term, StringComparison.OrdinalIgnoreCase)
+               || GetPool(job).Contains(term, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool MatchesState(JobRecord job)
+    {
+        if (SelectedState == "all")
+        {
+            return true;
+        }
+
+        return string.Equals(job.State.ToString(), SelectedState, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool MatchesPool(JobRecord job)
+    {
+        if (SelectedPool == "all")
+        {
+            return true;
+        }
+
+        return string.Equals(GetPool(job), SelectedPool, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetPool(JobRecord job) =>
+        string.IsNullOrWhiteSpace(job.Envelope.Payload.RequestedPool) ? "default" : job.Envelope.Payload.RequestedPool!;
+
+    private static string GetTagClass(JobState state) => state switch
+    {
+        JobState.Running => "tag--run",
+        JobState.Succeeded => "tag--ok",
+        JobState.Failed => "tag--alert",
+        JobState.Accepted or JobState.Received or JobState.Leased => "tag--warn",
+        JobState.Canceled => "tag--idle",
+        _ => "tag--idle"
+    };
+
+    private static string FormatRelative(DateTimeOffset timestamp)
+    {
+        var delta = DateTimeOffset.UtcNow - timestamp;
+        if (delta.TotalSeconds < 60)
+        {
+            return $"{Math.Max(1, delta.Seconds)}s ago";
+        }
+
+        if (delta.TotalMinutes < 60)
+        {
+            return $"{delta.Minutes}m ago";
+        }
+
+        if (delta.TotalHours < 24)
+        {
+            return $"{delta.Hours}h ago";
+        }
+
+        return $"{delta.Days}d ago";
+    }
+}

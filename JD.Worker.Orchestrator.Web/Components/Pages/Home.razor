@@ -1,0 +1,379 @@
+@page "/"
+@using JD.Worker.Abstractions
+@using JD.Worker.Core
+@inject OrchestratorApiClient Api
+@implements IDisposable
+
+<PageTitle>Command Deck</PageTitle>
+
+@if (_loading)
+{
+    <p class="muted">Loading dashboard telemetry...</p>
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <p class="muted">Unable to load dashboard data: @_error</p>
+}
+
+<section class="hero">
+    <div class="hero__text">
+        <p class="eyebrow">Command Deck</p>
+        <h1>Orchestrate every worker, queue, and run in one view.</h1>
+        <p class="lead">
+            Monitor active pools, inspect recent job activity, and launch new work without
+            leaving the control room.
+        </p>
+        <div class="hero__actions">
+            <a class="btn-primary" href="assign">New job</a>
+            <a class="btn-ghost" href="jobs">Open job queue</a>
+        </div>
+    </div>
+    <div class="hero__panel">
+        <div class="stat-card" style="--delay: 0ms">
+            <p class="stat-label">Workers online</p>
+            <p class="stat-value">@OnlineWorkerCount</p>
+            <p class="stat-meta">@IdleWorkerCount idle, @RunningWorkerCount running</p>
+        </div>
+        <div class="stat-card" style="--delay: 120ms">
+            <p class="stat-label">Jobs queued</p>
+            <p class="stat-value">@QueuedJobsCount</p>
+            <p class="stat-meta">@RunningJobsCount running</p>
+        </div>
+        <div class="stat-card" style="--delay: 240ms">
+            <p class="stat-label">SLA health</p>
+            <p class="stat-value">@SlaHealthPercent</p>
+            <p class="stat-meta">Last 30 minutes</p>
+        </div>
+    </div>
+</section>
+
+<section class="grid grid--three">
+    <article class="surface-card" style="--delay: 0ms">
+        <div class="card-head">
+            <h2>Active pools</h2>
+            <span class="pill">@PoolSummaries.Count pools</span>
+        </div>
+        @if (PoolSummaries.Count == 0)
+        {
+            <p class="muted">No active pools reported yet.</p>
+        }
+        else
+        {
+            <ul class="list">
+                @foreach (var pool in PoolSummaries)
+                {
+                    <li>
+                        <span class="list-title">@pool.Name</span>
+                        <span class="list-meta">@pool.Busy / @pool.Total busy</span>
+                    </li>
+                }
+            </ul>
+        }
+    </article>
+
+    <article class="surface-card" style="--delay: 120ms">
+        <div class="card-head">
+            <h2>Job flow</h2>
+            <span class="pill">Last hour</span>
+        </div>
+        <div class="meter">
+            <span>Accepted</span>
+            <div class="meter-bar"><span style="width: @AcceptedPercent%"></span></div>
+            <strong>@AcceptedPercent%</strong>
+        </div>
+        <div class="meter">
+            <span>Running</span>
+            <div class="meter-bar"><span style="width: @RunningPercent%"></span></div>
+            <strong>@RunningPercent%</strong>
+        </div>
+        <div class="meter">
+            <span>Failed</span>
+            <div class="meter-bar meter-bar--alert"><span style="width: @FailedPercent%"></span></div>
+            <strong>@FailedPercent%</strong>
+        </div>
+    </article>
+
+    <article class="surface-card" style="--delay: 240ms">
+        <div class="card-head">
+            <h2>Connector status</h2>
+            <span class="pill">@ConnectorSummaries.Count connected</span>
+        </div>
+        @if (ConnectorSummaries.Count == 0)
+        {
+            <p class="muted">No connector activity yet.</p>
+        }
+        else
+        {
+            <ul class="status-list">
+                @foreach (var connector in ConnectorSummaries)
+                {
+                    <li>
+                        <span class="status-dot @connector.DotClass"></span>
+                        @connector.Name
+                    </li>
+                }
+            </ul>
+        }
+    </article>
+</section>
+
+<section class="grid grid--two">
+    <article class="surface-card surface-card--wide" style="--delay: 0ms">
+        <div class="card-head">
+            <h2>Recent jobs</h2>
+            <a class="btn-link" href="jobs">Open full list</a>
+        </div>
+        @if (RecentJobs.Count == 0)
+        {
+            <p class="muted">No jobs have been submitted yet.</p>
+        }
+        else
+        {
+            @foreach (var job in RecentJobs)
+            {
+                <div class="job-row">
+                    <div>
+                        <p class="job-title">@job.JobId</p>
+                        <p class="job-meta">pool: @GetPool(job) · @job.Envelope.Payload.Steps.Count steps · updated @FormatRelative(job.UpdatedUtc)</p>
+                    </div>
+                    <span class="tag @GetTagClass(job.State)">@job.State</span>
+                </div>
+            }
+        }
+    </article>
+
+    <article class="surface-card surface-card--wide" style="--delay: 120ms">
+        <div class="card-head">
+            <h2>Assignments</h2>
+            <a class="btn-link" href="assign">Create assignment</a>
+        </div>
+        <p class="muted">
+            Define how incoming jobs are routed across workers. Assign policies
+            to pools, teams, or labels to keep work balanced.
+        </p>
+        @if (AssignmentSummaries.Count == 0)
+        {
+            <div class="assignment">
+                <div>
+                    <p class="job-title">No routing rules yet</p>
+                    <p class="job-meta">Dispatch a job to see routing summaries.</p>
+                </div>
+                <span class="tag tag--idle">Idle</span>
+            </div>
+        }
+        else
+        {
+            @foreach (var assignment in AssignmentSummaries)
+            {
+                <div class="assignment">
+                    <div>
+                        <p class="job-title">@assignment.Title</p>
+                        <p class="job-meta">@assignment.Detail</p>
+                    </div>
+                    <span class="tag tag--ok">Active</span>
+                </div>
+            }
+        }
+    </article>
+</section>
+
+@code {
+    private readonly TimeSpan _onlineThreshold = TimeSpan.FromSeconds(20);
+    private readonly TimeSpan _refreshInterval = TimeSpan.FromSeconds(10);
+    private IReadOnlyList<WorkerRegistration> _workers = Array.Empty<WorkerRegistration>();
+    private IReadOnlyList<JobRecord> _jobs = Array.Empty<JobRecord>();
+    private bool _loading = true;
+    private string? _error;
+    private CancellationTokenSource? _refreshCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync(initialLoad: true);
+        StartRefreshLoop();
+    }
+
+    private IReadOnlyList<WorkerRegistration> OnlineWorkers =>
+        _workers.Where(IsOnline).ToList();
+
+    private int OnlineWorkerCount => OnlineWorkers.Count;
+    private int IdleWorkerCount => OnlineWorkers.Count(worker => worker.Status == WorkerStatus.Idle);
+    private int RunningWorkerCount => OnlineWorkers.Count(worker =>
+        worker.Status == WorkerStatus.Running || worker.Status == WorkerStatus.Busy);
+
+    private int QueuedJobsCount => _jobs.Count(job =>
+        job.State == JobState.Received || job.State == JobState.Accepted || job.State == JobState.Leased);
+    private int RunningJobsCount => _jobs.Count(job => job.State == JobState.Running);
+
+    private string SlaHealthPercent
+    {
+        get
+        {
+            var since = DateTimeOffset.UtcNow.AddMinutes(-30);
+            var completed = _jobs.Where(job =>
+                job.UpdatedUtc >= since &&
+                (job.State == JobState.Succeeded || job.State == JobState.Failed)).ToList();
+            if (completed.Count == 0)
+            {
+                return "—";
+            }
+
+            var success = completed.Count(job => job.State == JobState.Succeeded);
+            return $"{Math.Round(success * 100d / completed.Count):0}%";
+        }
+    }
+
+    private IReadOnlyList<PoolSummary> PoolSummaries =>
+        OnlineWorkers
+            .GroupBy(worker => string.IsNullOrWhiteSpace(worker.Pool) ? "default" : worker.Pool!)
+            .Select(group => new PoolSummary(
+                group.Key,
+                group.Count(),
+                group.Count(worker => worker.Status == WorkerStatus.Running || worker.Status == WorkerStatus.Busy)))
+            .OrderByDescending(summary => summary.Total)
+            .Take(3)
+            .ToList();
+
+    private IReadOnlyList<JobRecord> RecentJobs =>
+        _jobs.OrderByDescending(job => job.UpdatedUtc).Take(3).ToList();        
+
+    private int AcceptedPercent => CalculatePercent(JobState.Accepted);
+    private int RunningPercent => CalculatePercent(JobState.Running);
+    private int FailedPercent => CalculatePercent(JobState.Failed);
+
+    private IReadOnlyList<ConnectorSummary> ConnectorSummaries =>
+        _jobs
+            .Where(job => !string.IsNullOrWhiteSpace(job.Source))
+            .GroupBy(job => job.Source!, StringComparer.OrdinalIgnoreCase)
+            .Select(group =>
+            {
+                var last = group.Max(job => job.UpdatedUtc);
+                var dotClass = DateTimeOffset.UtcNow - last <= _onlineThreshold
+                    ? "status-dot--ok"
+                    : "status-dot--warn";
+                return new ConnectorSummary(group.Key, dotClass);
+            })
+            .OrderBy(summary => summary.Name)
+            .Take(4)
+            .ToList();
+
+    private IReadOnlyList<AssignmentSummary> AssignmentSummaries =>
+        _jobs
+            .Where(job => !string.IsNullOrWhiteSpace(job.Envelope.Payload.RequestedPool))
+            .GroupBy(job => job.Envelope.Payload.RequestedPool!)
+            .Select(group => new AssignmentSummary(
+                $"pool: {group.Key}",
+                $"{group.Count()} jobs routed"))
+            .Take(2)
+            .ToList();
+
+    private int CalculatePercent(JobState state)
+    {
+        if (_jobs.Count == 0)
+        {
+            return 0;
+        }
+
+        var count = _jobs.Count(job => job.State == state);
+        return (int)Math.Round(count * 100d / _jobs.Count);
+    }
+
+    private static string GetPool(JobRecord job) =>
+        string.IsNullOrWhiteSpace(job.Envelope.Payload.RequestedPool) ? "default" : job.Envelope.Payload.RequestedPool!;
+
+    private static string GetTagClass(JobState state) => state switch
+    {
+        JobState.Running => "tag--run",
+        JobState.Succeeded => "tag--ok",
+        JobState.Failed => "tag--alert",
+        JobState.Accepted or JobState.Received or JobState.Leased => "tag--warn",
+        JobState.Canceled => "tag--idle",
+        _ => "tag--idle"
+    };
+
+    private static string FormatRelative(DateTimeOffset timestamp)
+    {
+        var delta = DateTimeOffset.UtcNow - timestamp;
+        if (delta.TotalSeconds < 60)
+        {
+            return $"{Math.Max(1, delta.Seconds)}s ago";
+        }
+
+        if (delta.TotalMinutes < 60)
+        {
+            return $"{delta.Minutes}m ago";
+        }
+
+        if (delta.TotalHours < 24)
+        {
+            return $"{delta.Hours}h ago";
+        }
+
+        return $"{delta.Days}d ago";
+    }
+
+    private bool IsOnline(WorkerRegistration worker) =>
+        worker.Status != WorkerStatus.Unknown &&
+        DateTimeOffset.UtcNow - worker.LastHeartbeatUtc <= _onlineThreshold;
+
+    private async Task RefreshAsync(bool initialLoad)
+    {
+        try
+        {
+            var workerTask = Api.GetWorkersAsync();
+            var jobTask = Api.GetJobsAsync();
+            await Task.WhenAll(workerTask, jobTask);
+
+            var workers = workerTask.Result;
+            var jobs = jobTask.Result;
+
+            await InvokeAsync(() =>
+            {
+                _error = null;
+                _workers = workers;
+                _jobs = jobs;
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            await InvokeAsync(() =>
+            {
+                _error = ex.Message;
+                StateHasChanged();
+            });
+        }
+        finally
+        {
+            if (initialLoad)
+            {
+                _loading = false;
+            }
+        }
+    }
+
+    private void StartRefreshLoop()
+    {
+        _refreshCts?.Cancel();
+        _refreshCts = new CancellationTokenSource();
+        _ = Task.Run(() => RefreshLoopAsync(_refreshCts.Token));
+    }
+
+    private async Task RefreshLoopAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(_refreshInterval);
+        while (await timer.WaitForNextTickAsync(cancellationToken))
+        {
+            await RefreshAsync(initialLoad: false);
+        }
+    }
+
+    public void Dispose()
+    {
+        _refreshCts?.Cancel();
+        _refreshCts?.Dispose();
+    }
+
+    private sealed record PoolSummary(string Name, int Total, int Busy);        
+    private sealed record ConnectorSummary(string Name, string DotClass);       
+    private sealed record AssignmentSummary(string Title, string Detail);       
+}

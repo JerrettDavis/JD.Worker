@@ -1,0 +1,422 @@
+@page "/jobs/{JobId}"
+@using JD.Worker.Abstractions
+@using JD.Worker.Configuration
+@using JD.Worker.Core
+@inject OrchestratorApiClient Api
+
+<PageTitle>Job @JobId</PageTitle>
+
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Job detail</p>
+        <h1>@(Job?.JobId ?? JobId)</h1>
+        <p class="lead">@JobSummary</p>
+    </div>
+    <div class="page-header__actions">
+        <a class="btn-ghost" href="jobs">Back to jobs</a>
+        <button class="btn-ghost" @onclick="RefreshAsync">Refresh</button>
+    </div>
+</section>
+
+@if (_loading)
+{
+    <p class="muted">Loading job telemetry...</p>
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <p class="muted">Unable to load job: @_error</p>
+}
+else if (Job is null)
+{
+    <p class="muted">Job not found.</p>
+}
+else
+{
+    <section class="grid grid--two">
+        <article class="surface-card" style="--delay: 0ms">
+            <div class="card-head">
+                <h2>Steps</h2>
+                <span class="tag @GetJobTagClass(Job.State)">@Job.State</span>
+            </div>
+            <div class="step-timeline">
+                <button class="step-item @(SelectedStep is null ? "step-item--active" : string.Empty)" @onclick="ClearStepSelection">
+                    <div>
+                        <p class="step-log-title">All logs</p>
+                        <p class="step-meta">@($"{Logs.Count} lines captured")</p>
+                    </div>
+                    <span class="tag @GetJobTagClass(Job.State)">@Job.State</span>
+                </button>
+                @foreach (var step in Steps)
+                {
+                    <button class="step-item @(IsSelected(step) ? "step-item--active" : string.Empty)" @onclick="() => SelectStep(step)">
+                        <div>
+                            <p class="step-log-title">@step.DisplayName</p>
+                            <p class="step-meta">@step.Summary</p>
+                        </div>
+                        <span class="tag @GetStepTagClass(step)">@GetStepStatus(step)</span>
+                    </button>
+                }
+            </div>
+        </article>
+
+        <article class="surface-card" style="--delay: 120ms">
+            <div class="card-head">
+                <h2>Step logs</h2>
+                <div class="inline-badges">
+                    <span class="pill">@SelectedLabel</span>
+                    <span class="pill pill--dark">@($"{FilteredLogs.Count} lines")</span>
+                </div>
+            </div>
+            <div class="console-actions">
+                <button class="btn-ghost" @onclick="LoadMoreAsync">Load history</button>
+                <button class="btn-ghost" @onclick="ClearLogs">Clear</button>
+            </div>
+            <div class="log-console">
+                @if (FilteredLogs.Count == 0)
+                {
+                    <p class="muted">No logs captured for this selection.</p>
+                }
+                else
+                {
+                    <div class="log-stream">
+                        @foreach (var entry in FilteredLogs)
+                        {
+                            <div class="log-line @GetLogLevelClass(entry.Level)">
+                                <span class="log-time">@entry.TimestampUtc.ToLocalTime().ToString("HH:mm:ss")</span>
+                                <span class="log-level">@entry.Level</span>
+                                <span class="log-message">@entry.Message</span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </article>
+    </section>
+}
+
+@code {
+    [Parameter]
+    public string JobId { get; set; } = string.Empty;
+
+    private JobRecord? Job { get; set; }
+    private List<JobLogEntry> Logs { get; set; } = new();
+    private List<StepTimelineItem> Steps { get; set; } = new();
+    private StepTimelineItem? SelectedStep { get; set; }
+    private string? _error;
+    private bool _loading = true;
+    private int _logTake = 400;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await RefreshAsync();
+    }
+
+    private string JobSummary => Job is null
+        ? "Fetching job metadata..."
+        : $"Pool: {GetPool(Job)} · attempt {Job.Attempt} · {Job.Envelope.Payload.Steps.Count} steps · updated {FormatRelative(Job.UpdatedUtc)}";
+
+    private string SelectedLabel => SelectedStep is null
+        ? "All logs"
+        : SelectedStep.DisplayName;
+
+    private List<JobLogEntry> FilteredLogs
+    {
+        get
+        {
+            var logs = Logs.Where(entry => !IsStepMarker(entry.Message));
+            if (SelectedStep?.StartUtc is null)
+            {
+                return logs.ToList();
+            }
+
+            var start = SelectedStep.StartUtc.Value;
+            var end = SelectedStep.EndUtc;
+            return logs.Where(entry =>
+                    entry.TimestampUtc >= start &&
+                    (!end.HasValue || entry.TimestampUtc <= end.Value))
+                .ToList();
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            Job = await Api.GetJobAsync(JobId);
+            await LoadLogsAsync();
+            BuildStepTimeline();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadLogsAsync()
+    {
+        if (string.IsNullOrWhiteSpace(JobId))
+        {
+            return;
+        }
+
+        var logs = await Api.GetJobLogsAsync(JobId, _logTake);
+        Logs = logs.OrderBy(entry => entry.TimestampUtc).ToList();
+    }
+
+    private void BuildStepTimeline()
+    {
+        Steps = new List<StepTimelineItem>();
+        if (Job is null)
+        {
+            return;
+        }
+
+        Steps = Job.Envelope.Payload.Steps
+            .Select((step, index) => new StepTimelineItem(
+                GetStepLabel(step, index),
+                step.Type,
+                BuildStepSummary(step)))
+            .ToList();
+
+        var stepLookup = Steps.ToDictionary(step => step.DisplayName, StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in Logs)
+        {
+            if (!TryParseStepMarker(entry.Message, out var marker))
+            {
+                continue;
+            }
+
+            if (!stepLookup.TryGetValue(marker.StepName, out var timeline))
+            {
+                continue;
+            }
+
+            if (marker.IsStart)
+            {
+                timeline.StartUtc ??= entry.TimestampUtc;
+                continue;
+            }
+
+            timeline.EndUtc = entry.TimestampUtc;
+            timeline.Success = marker.Success;
+        }
+
+        if (SelectedStep is not null)
+        {
+            SelectedStep = Steps.FirstOrDefault(step =>
+                string.Equals(step.DisplayName, SelectedStep.DisplayName, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private void SelectStep(StepTimelineItem step)
+    {
+        SelectedStep = step;
+    }
+
+    private void ClearStepSelection()
+    {
+        SelectedStep = null;
+    }
+
+    private async Task LoadMoreAsync()
+    {
+        _logTake = Math.Min(_logTake + 400, 4000);
+        await LoadLogsAsync();
+        BuildStepTimeline();
+    }
+
+    private void ClearLogs()
+    {
+        Logs = new List<JobLogEntry>();
+        BuildStepTimeline();
+    }
+
+    private bool IsSelected(StepTimelineItem step) =>
+        SelectedStep is not null &&
+        string.Equals(step.DisplayName, SelectedStep.DisplayName, StringComparison.OrdinalIgnoreCase);
+
+    private static string GetPool(JobRecord job) =>
+        string.IsNullOrWhiteSpace(job.Envelope.Payload.RequestedPool) ? "default" : job.Envelope.Payload.RequestedPool!;
+
+    private static string BuildStepSummary(StepDefinition step)
+    {
+        var arguments = step.Arguments is null || step.Arguments.Count == 0     
+            ? string.Empty
+            : " " + string.Join(' ', step.Arguments);
+        if (step.Type == StepType.Docker)
+        {
+            var image = string.IsNullOrWhiteSpace(step.Image) ? null : step.Image;
+            var dockerfile = string.IsNullOrWhiteSpace(step.Dockerfile)
+                ? null
+                : $"Dockerfile: {step.Dockerfile}";
+            var source = image ?? dockerfile ?? "Docker step";
+            var command = string.IsNullOrWhiteSpace(step.Command)
+                ? string.Empty
+                : $"{step.Command}{arguments}";
+            return string.IsNullOrWhiteSpace(command)
+                ? $"{step.Type} · {source}"
+                : $"{step.Type} · {source} · {command}";
+        }
+
+        return $"{step.Type} · {step.Command}{arguments}";
+    }
+
+    private static string GetStepLabel(StepDefinition step, int index) =>
+        string.IsNullOrWhiteSpace(step.Name) ? $"step-{index + 1:00}" : step.Name;
+
+    private static string GetStepStatus(StepTimelineItem step)
+    {
+        if (!step.StartUtc.HasValue)
+        {
+            return "Pending";
+        }
+
+        if (step.Success is true)
+        {
+            return "Succeeded";
+        }
+
+        if (step.Success is false)
+        {
+            return "Failed";
+        }
+
+        return "Running";
+    }
+
+    private static string GetStepTagClass(StepTimelineItem step)
+    {
+        if (!step.StartUtc.HasValue)
+        {
+            return "tag--idle";
+        }
+
+        if (step.Success is true)
+        {
+            return "tag--ok";
+        }
+
+        if (step.Success is false)
+        {
+            return "tag--alert";
+        }
+
+        return "tag--run";
+    }
+
+    private static string GetJobTagClass(JobState state) => state switch
+    {
+        JobState.Running => "tag--run",
+        JobState.Succeeded => "tag--ok",
+        JobState.Failed => "tag--alert",
+        JobState.Accepted or JobState.Received or JobState.Leased => "tag--warn",
+        JobState.Canceled => "tag--idle",
+        _ => "tag--idle"
+    };
+
+    private static string GetLogLevelClass(LogLevel level) => level switch
+    {
+        LogLevel.Error or LogLevel.Critical => "log-line--error",
+        LogLevel.Warning => "log-line--warn",
+        _ => "log-line--info"
+    };
+
+    private static string FormatRelative(DateTimeOffset timestamp)
+    {
+        var delta = DateTimeOffset.UtcNow - timestamp;
+        if (delta.TotalSeconds < 60)
+        {
+            return $"{Math.Max(1, delta.Seconds)}s ago";
+        }
+
+        if (delta.TotalMinutes < 60)
+        {
+            return $"{delta.Minutes}m ago";
+        }
+
+        if (delta.TotalHours < 24)
+        {
+            return $"{delta.Hours}h ago";
+        }
+
+        return $"{delta.Days}d ago";
+    }
+
+    private static bool IsStepMarker(string message) =>
+        message.StartsWith("[step:", StringComparison.OrdinalIgnoreCase);
+
+    private static bool TryParseStepMarker(string message, out StepMarker marker)
+    {
+        marker = new StepMarker(string.Empty, false, null);
+        if (!message.StartsWith("[step:", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var closing = message.IndexOf(']');
+        if (closing <= 0)
+        {
+            return false;
+        }
+
+        var directive = message[6..closing].Trim();
+        var payload = message[(closing + 1)..].Trim();
+        if (string.IsNullOrWhiteSpace(directive) || string.IsNullOrWhiteSpace(payload))
+        {
+            return false;
+        }
+
+        if (directive.Equals("start", StringComparison.OrdinalIgnoreCase))
+        {
+            marker = new StepMarker(payload, true, null);
+            return true;
+        }
+
+        if (directive.Equals("end", StringComparison.OrdinalIgnoreCase))
+        {
+            var trimmed = payload;
+            bool? success = null;
+            if (payload.EndsWith(" success", StringComparison.OrdinalIgnoreCase))
+            {
+                trimmed = payload[..^8].TrimEnd();
+                success = true;
+            }
+            else if (payload.EndsWith(" failed", StringComparison.OrdinalIgnoreCase))
+            {
+                trimmed = payload[..^7].TrimEnd();
+                success = false;
+            }
+
+            marker = new StepMarker(trimmed, false, success);
+            return true;
+        }
+
+        return false;
+    }
+
+    private sealed record StepMarker(string StepName, bool IsStart, bool? Success);
+
+    private sealed class StepTimelineItem
+    {
+        public StepTimelineItem(string displayName, StepType type, string summary)
+        {
+            DisplayName = displayName;
+            Type = type;
+            Summary = summary;
+        }
+
+        public string DisplayName { get; }
+        public StepType Type { get; }
+        public string Summary { get; }
+        public DateTimeOffset? StartUtc { get; set; }
+        public DateTimeOffset? EndUtc { get; set; }
+        public bool? Success { get; set; }
+    }
+}

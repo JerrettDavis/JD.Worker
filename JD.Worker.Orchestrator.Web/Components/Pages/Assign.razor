@@ -1,0 +1,426 @@
+@page "/assign"
+@using System.Text.Json
+@using JD.Worker.Abstractions
+@using JD.Worker.Configuration
+@inject OrchestratorApiClient Api
+
+<PageTitle>Assign</PageTitle>
+
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Assign</p>
+        <h1>Assign jobs to pools</h1>
+    </div>
+    <div class="page-header__actions">
+        <button class="btn-ghost" @onclick="ResetForm">Reset</button>
+        <button class="btn-primary" @onclick="SubmitAsync">Dispatch job</button>
+    </div>
+</section>
+
+<section class="grid grid--two">
+    <article class="surface-card" style="--delay: 0ms">
+        <div class="card-head">
+            <h2>Job details</h2>
+            <span class="pill">draft</span>
+        </div>
+        <div class="form-grid">
+            <label>
+                <span>Job id</span>
+                <input class="input" @bind="JobId" />
+            </label>
+            <label>
+                <span>Pool</span>
+                <select class="input" @bind="SelectedPool">
+                    @foreach (var pool in Pools)
+                    {
+                        <option value="@pool">@pool</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Timeout</span>
+                <input class="input" @bind="TimeoutText" placeholder="30m" />
+            </label>
+        </div>
+        <div class="section-divider"></div>
+        <h3>Steps</h3>
+        @for (var i = 0; i < Steps.Count; i++)
+        {
+            var index = i;
+            <div class="step-card">
+                <div>
+                    <p class="job-title">@Steps[index].Name</p>
+                    <p class="job-meta">@Steps[index].Type · @Steps[index].Command</p>
+                </div>
+                <div class="step-actions">
+                    <span class="tag tag--ok">@Steps[index].Type</span>
+                    <button class="btn-ghost" type="button" @onclick="@(() => MoveStepUp(index))" disabled="@(index == 0)">Up</button>
+                    <button class="btn-ghost" type="button" @onclick="@(() => MoveStepDown(index))" disabled="@(index == Steps.Count - 1)">Down</button>
+                    <button class="btn-ghost" type="button" @onclick="@(() => RemoveStep(index))">Remove</button>
+                </div>
+            </div>
+            <div class="form-grid">
+                <label>
+                    <span>Name</span>
+                    <input class="input" @bind="Steps[index].Name" />
+                </label>
+                <label>
+                    <span>Type</span>
+                    <select class="input" @bind="Steps[index].Type" @bind:after="@(() => OnStepTypeChanged(index))">
+                        @foreach (var stepType in StepTypes)
+                        {
+                            <option value="@stepType">@stepType</option>        
+                        }
+                    </select>
+                </label>
+                <label>
+                    <span>Command</span>
+                    <input class="input" @bind="Steps[index].Command" />
+                </label>
+                <label>
+                    <span>Arguments</span>
+                    <input class="input" @bind="Steps[index].Arguments" placeholder="--version" />
+                </label>
+            </div>
+            @if (Steps[index].Type == StepType.Docker)
+            {
+                <div class="form-grid">
+                    <label>
+                        <span>Image</span>
+                        <input class="input" @bind="Steps[index].Image" placeholder="alpine:latest" />
+                    </label>
+                    <label>
+                        <span>Dockerfile</span>
+                        <input class="input" @bind="Steps[index].Dockerfile" placeholder="Dockerfile" />
+                    </label>
+                    <label>
+                        <span>Build context</span>
+                        <input class="input" @bind="Steps[index].BuildContext" placeholder="." />
+                    </label>
+                    <label>
+                        <span>Build args</span>
+                        <input class="input" @bind="Steps[index].BuildArgs" placeholder="ARG1=value ARG2=value" />
+                    </label>
+                    <label>
+                        <span>Run args</span>
+                        <input class="input" @bind="Steps[index].RunArgs" placeholder="--network host" />
+                    </label>
+                </div>
+            }
+        }
+        <button class="btn-ghost" @onclick="AddStep">Add step</button>
+        @if (!string.IsNullOrWhiteSpace(SubmitMessage))
+        {
+            <p class="muted">@SubmitMessage</p>
+        }
+        @if (!string.IsNullOrWhiteSpace(SubmitError))
+        {
+            <p class="muted">@SubmitError</p>
+        }
+    </article>
+
+    <article class="surface-card" style="--delay: 120ms">
+        <div class="card-head">
+            <h2>Assignment rules</h2>
+            <button class="btn-link" @onclick="RefreshPools">Refresh pools</button>
+        </div>
+        <div class="rule-card">
+            <p class="rule-title">Target pool</p>
+            <p class="job-meta">@SelectedPool</p>
+        </div>
+        <div class="rule-card">
+            <p class="rule-title">Available pools</p>
+            <p class="job-meta">@string.Join(", ", Pools)</p>
+        </div>
+        <div class="section-divider"></div>
+        <h3>Payload preview</h3>
+        <pre class="code-block">@PayloadPreview</pre>
+    </article>
+</section>
+
+@code {
+    private string JobId { get; set; } = $"job-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}";
+    private string SelectedPool { get; set; } = "default";
+    private string TimeoutText { get; set; } = "30m";
+    private List<StepModel> Steps { get; set; } = new();
+    private string? SubmitMessage { get; set; }
+    private string? SubmitError { get; set; }
+    private List<string> Pools { get; set; } = new() { "default" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        ResetSteps();
+        await RefreshPools();
+    }
+
+    private static IReadOnlyList<StepType> StepTypes =>
+        Enum.GetValues<StepType>().OrderBy(step => step.ToString()).ToList();
+
+    private string PayloadPreview
+    {
+        get
+        {
+            var envelope = BuildEnvelope();
+            return JsonSerializer.Serialize(envelope, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+        }
+    }
+
+    private void AddStep()
+    {
+        Steps.Add(new StepModel
+        {
+            Name = $"step-{Steps.Count + 1:00}",
+            Type = StepType.Shell,
+            Command = "echo hello",
+            Arguments = string.Empty
+        });
+    }
+
+    private void RemoveStep(int index)
+    {
+        if (index < 0 || index >= Steps.Count)
+        {
+            return;
+        }
+
+        Steps.RemoveAt(index);
+
+        if (Steps.Count == 0)
+        {
+            AddStep();
+        }
+    }
+
+    private void MoveStepUp(int index)
+    {
+        if (index <= 0 || index >= Steps.Count)
+        {
+            return;
+        }
+
+        SwapSteps(index, index - 1);
+    }
+
+    private void MoveStepDown(int index)
+    {
+        if (index < 0 || index >= Steps.Count - 1)
+        {
+            return;
+        }
+
+        SwapSteps(index, index + 1);
+    }
+
+    private void SwapSteps(int firstIndex, int secondIndex)
+    {
+        (Steps[firstIndex], Steps[secondIndex]) = (Steps[secondIndex], Steps[firstIndex]);
+    }
+
+    private void ResetSteps()
+    {
+        Steps = new List<StepModel>
+        {
+            new()
+            {
+                Name = "step-01",
+                Type = StepType.Shell,
+                Command = "echo hello",
+                Arguments = string.Empty
+            }
+        };
+    }
+
+    private void ResetForm()
+    {
+        JobId = $"job-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}";
+        SelectedPool = Pools.FirstOrDefault() ?? "default";
+        TimeoutText = "30m";
+        ResetSteps();
+        SubmitMessage = null;
+        SubmitError = null;
+    }
+
+    private async Task RefreshPools()
+    {
+        var workers = await Api.GetWorkersAsync();
+        Pools = workers.Select(worker => worker.Pool)
+            .Where(pool => !string.IsNullOrWhiteSpace(pool))
+            .Select(pool => pool!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(pool => pool)
+            .ToList();
+
+        if (Pools.Count == 0)
+        {
+            Pools.Add("default");
+        }
+
+        if (!Pools.Contains(SelectedPool, StringComparer.OrdinalIgnoreCase))    
+        {
+            SelectedPool = Pools[0];
+        }
+    }
+
+    private void OnStepTypeChanged(int index)
+    {
+        if (index < 0 || index >= Steps.Count)
+        {
+            return;
+        }
+
+        if (Steps[index].Type != StepType.Docker)
+        {
+            return;
+        }
+
+        var dockerPool = Pools.FirstOrDefault(pool =>
+            string.Equals(pool, "docker", StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(dockerPool))
+        {
+            SelectedPool = dockerPool;
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        SubmitMessage = null;
+        SubmitError = null;
+
+        try
+        {
+            var envelope = BuildEnvelope();
+            var record = await Api.SubmitJobAsync(envelope);
+            SubmitMessage = $"Job {record.JobId} accepted in state {record.State}.";
+        }
+        catch (Exception ex)
+        {
+            SubmitError = $"Job dispatch failed: {ex.Message}";
+        }
+    }
+
+    private JobEnvelope BuildEnvelope()
+    {
+        var requiresDocker = Steps.Any(step => step.Type == StepType.Docker);
+        var payload = new JobPayload
+        {
+            RequestedPool = SelectedPool,
+            Timeout = TryParseTimeout(TimeoutText),
+            Requirements = requiresDocker ? new JobRequirements { DockerRequired = true } : null,
+            Steps = Steps.Select(model => new StepDefinition
+            {
+                Name = model.Name,
+                Type = model.Type,
+                Command = model.Command,
+                Arguments = ParseArguments(model.Arguments),
+                Image = model.Type == StepType.Docker ? Normalize(model.Image) : null,
+                Dockerfile = model.Type == StepType.Docker ? Normalize(model.Dockerfile) : null,
+                BuildContext = model.Type == StepType.Docker ? Normalize(model.BuildContext) : null,
+                BuildArgs = model.Type == StepType.Docker ? ParseKeyValuePairs(model.BuildArgs) : null,
+                RunArgs = model.Type == StepType.Docker ? ParseArguments(model.RunArgs) : null
+            }).ToList()
+        };
+
+        return new JobEnvelope
+        {
+            Envelope = new JobEnvelopeMetadata
+            {
+                JobId = string.IsNullOrWhiteSpace(JobId) ? Guid.NewGuid().ToString("N") : JobId,
+                Attempt = 1,
+                CreatedUtc = DateTimeOffset.UtcNow
+            },
+            Payload = payload
+        };
+    }
+
+    private static List<string>? ParseArguments(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        return raw.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();  
+    }
+
+    private static Dictionary<string, string>? ParseKeyValuePairs(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var entries = raw.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in entries)
+        {
+            var separator = entry.IndexOf('=');
+            if (separator <= 0 || separator == entry.Length - 1)
+            {
+                continue;
+            }
+
+            var key = entry[..separator];
+            var value = entry[(separator + 1)..];
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                continue;
+            }
+
+            result[key] = value;
+        }
+
+        return result.Count == 0 ? null : result;
+    }
+
+    private static string? Normalize(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static TimeSpan? TryParseTimeout(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (TimeSpan.TryParse(value, out var parsed))
+        {
+            return parsed;
+        }
+
+        if (value.EndsWith("m", StringComparison.OrdinalIgnoreCase)
+            && double.TryParse(value[..^1], out var minutes))
+        {
+            return TimeSpan.FromMinutes(minutes);
+        }
+
+        if (value.EndsWith("h", StringComparison.OrdinalIgnoreCase)
+            && double.TryParse(value[..^1], out var hours))
+        {
+            return TimeSpan.FromHours(hours);
+        }
+
+        if (value.EndsWith("s", StringComparison.OrdinalIgnoreCase)
+            && double.TryParse(value[..^1], out var seconds))
+        {
+            return TimeSpan.FromSeconds(seconds);
+        }
+
+        return null;
+    }
+
+    private sealed class StepModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public StepType Type { get; set; }
+        public string Command { get; set; } = string.Empty;
+        public string? Arguments { get; set; }
+        public string? Image { get; set; }
+        public string? Dockerfile { get; set; }
+        public string? BuildContext { get; set; }
+        public string? BuildArgs { get; set; }
+        public string? RunArgs { get; set; }
+    }
+}

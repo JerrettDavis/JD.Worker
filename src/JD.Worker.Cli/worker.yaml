@@ -1,0 +1,17 @@
+worker:
+  id: local-worker
+  pools:
+    - name: default
+      concurrency: 2
+  workspace:
+    root: ./workspaces
+    cleanup: immediate
+  sandbox: none
+
+cnc:
+  - name: orchestrator
+    type: Http
+    settings:
+      baseUrl: ${JD_WORKER_API_URL}
+      pollIntervalSeconds: 2
+      leaseSeconds: 300

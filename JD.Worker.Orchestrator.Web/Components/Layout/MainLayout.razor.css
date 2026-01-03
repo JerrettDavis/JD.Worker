@@ -1,0 +1,106 @@
+.app-shell {
+    min-height: 100vh;
+    display: flex;
+    background: var(--surface-background);
+    position: relative;
+    z-index: 1;
+}
+
+.sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    background: var(--sidebar-background);
+    border-right: 1px solid var(--surface-border);
+}
+
+.main-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 1.5rem 2.5rem;
+    border-bottom: 1px solid var(--surface-border);
+    background: var(--topbar-background);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
+.top-bar__eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.7rem;
+    color: var(--muted-text);
+    margin: 0 0 0.3rem 0;
+}
+
+.top-bar__title {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    color: var(--primary-text);
+}
+
+.top-bar__right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.content {
+    padding: 2.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+#blazor-error-ui {
+    background: #1f2a23;
+    bottom: 0;
+    box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.3);
+    color: #fef6e7;
+    display: none;
+    left: 0;
+    padding: 0.75rem 1.5rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 1rem;
+    top: 0.6rem;
+}
+
+@media (max-width: 900px) {
+    .app-shell {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+    }
+
+    .top-bar {
+        padding: 1.25rem 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .content {
+        padding: 1.5rem;
+    }
+}

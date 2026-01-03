@@ -1,0 +1,336 @@
+@page "/console"
+@using JD.Worker.Abstractions
+@using JD.Worker.Core
+@inject OrchestratorApiClient Api
+@implements IDisposable
+
+<PageTitle>Console</PageTitle>
+
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Console</p>
+        <h1>Worker logs</h1>
+    </div>
+    <div class="page-header__actions">
+        <button class="btn-ghost" @onclick="RefreshAsync">Refresh</button>
+        <button class="btn-primary" @onclick="ToggleAutoRefresh">
+            @(AutoRefresh ? "Live tail: on" : "Live tail: off")
+        </button>
+    </div>
+</section>
+
+<section class="grid grid--two">
+    <article class="surface-card" style="--delay: 0ms">
+        <div class="card-head">
+            <h2>Active workers</h2>
+            <span class="pill">@ActiveWorkers.Count running</span>
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Worker</th>
+                    <th>Status</th>
+                    <th>Current job</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Workers.Count == 0)
+                {
+                    <tr>
+                        <td colspan="4" class="muted">No workers have reported yet.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var worker in Workers)
+                    {
+                        <tr class="@GetRowClass(worker.WorkerId)">
+                            <td>
+                                <div class="cell-title">@worker.WorkerId</div>
+                                <div class="cell-subtitle">Pool: @(worker.Pool ?? "default")</div>
+                            </td>
+                            <td><span class="tag @GetStatusClass(worker)">@GetStatusLabel(worker)</span></td>
+                            <td>@(string.IsNullOrWhiteSpace(worker.CurrentJobId) ? "—" : worker.CurrentJobId)</td>
+                            <td>
+                                <button class="btn-link" @onclick="() => SelectWorkerAsync(worker)">
+                                    View logs
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+        <div class="section-divider"></div>
+        <div class="card-head">
+            <h2>Recent jobs</h2>
+            <span class="pill pill--dark">@Jobs.Count total</span>
+        </div>
+        <div class="list-stack">
+            @if (Jobs.Count == 0)
+            {
+                <p class="muted">No jobs have been submitted.</p>
+            }
+            else
+            {
+                @foreach (var job in Jobs.Take(8))
+                {
+                    <button class="list-card @GetJobClass(job.JobId)" @onclick="() => SelectJobAsync(job)">
+                        <div>
+                            <p class="job-title">@job.JobId</p>
+                            <p class="job-meta">@job.State · @FormatRelative(job.UpdatedUtc)</p>
+                        </div>
+                        <span class="tag @GetJobStateClass(job.State)">@job.State</span>
+                    </button>
+                }
+            }
+        </div>
+    </article>
+
+    <article class="surface-card" style="--delay: 120ms">
+        <div class="card-head">
+            <h2>Console output</h2>
+            <div class="inline-badges">
+                <span class="pill">@SelectedLabel</span>
+                <span class="pill pill--dark">@($"{LogEntries.Count} lines")</span>
+            </div>
+        </div>
+        <div class="console-actions">
+            <button class="btn-ghost" @onclick="LoadMoreAsync">Load history</button>
+            <button class="btn-ghost" @onclick="ClearLogs">Clear</button>
+        </div>
+        <div class="log-console">
+            @if (IsLoadingLogs)
+            {
+                <p class="muted">Loading logs…</p>
+            }
+            else if (string.IsNullOrWhiteSpace(SelectedJobId))
+            {
+                <p class="muted">Select a running worker or job to view logs.</p>
+            }
+            else if (LogEntries.Count == 0)
+            {
+                <p class="muted">No logs have been captured for this job yet.</p>
+            }
+            else
+            {
+                <div class="log-stream">
+                    @foreach (var entry in LogEntries)
+                    {
+                        <div class="log-line @GetLogLevelClass(entry.Level)">
+                            <span class="log-time">@entry.TimestampUtc.ToLocalTime().ToString("HH:mm:ss")</span>
+                            <span class="log-level">@entry.Level</span>
+                            <span class="log-message">@entry.Message</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </article>
+</section>
+
+@code {
+    private readonly TimeSpan _refreshInterval = TimeSpan.FromSeconds(2);
+    private readonly TimeSpan _onlineThreshold = TimeSpan.FromSeconds(20);
+    private IReadOnlyList<WorkerRegistration> Workers { get; set; } = Array.Empty<WorkerRegistration>();
+    private IReadOnlyList<JobRecord> Jobs { get; set; } = Array.Empty<JobRecord>();
+    private List<JobLogEntry> LogEntries { get; set; } = new();
+    private string? SelectedJobId { get; set; }
+    private string? SelectedWorkerId { get; set; }
+    private int LogTake { get; set; } = 200;
+    private bool AutoRefresh { get; set; } = true;
+    private bool IsLoadingLogs { get; set; }
+    private CancellationTokenSource? _refreshCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+        StartRefreshLoop();
+    }
+
+    private string SelectedLabel =>
+        string.IsNullOrWhiteSpace(SelectedJobId) ? "No job selected" : SelectedJobId;
+
+    private IReadOnlyList<WorkerRegistration> ActiveWorkers =>
+        Workers.Where(worker => IsOnline(worker) && worker.Status == WorkerStatus.Running).ToList();
+
+    private async Task RefreshAsync()
+    {
+        var workerTask = Api.GetWorkersAsync();
+        var jobTask = Api.GetJobsAsync();
+        await Task.WhenAll(workerTask, jobTask);
+
+        Workers = workerTask.Result.OrderBy(worker => worker.WorkerId).ToList();
+        Jobs = jobTask.Result.OrderByDescending(job => job.UpdatedUtc).ToList();
+
+        if (string.IsNullOrWhiteSpace(SelectedJobId))
+        {
+            var runningJob = Workers
+                .FirstOrDefault(worker => !string.IsNullOrWhiteSpace(worker.CurrentJobId));
+            if (runningJob is not null)
+            {
+                await SelectWorkerAsync(runningJob);
+                return;
+            }
+
+            var recentJob = Jobs.FirstOrDefault();
+            if (recentJob is not null)
+            {
+                await SelectJobAsync(recentJob);
+                return;
+            }
+        }
+
+        await LoadLogsAsync();
+    }
+
+    private async Task SelectWorkerAsync(WorkerRegistration worker)
+    {
+        SelectedWorkerId = worker.WorkerId;
+        if (string.IsNullOrWhiteSpace(worker.CurrentJobId))
+        {
+            SelectedJobId = null;
+            LogEntries = new List<JobLogEntry>();
+            return;
+        }
+
+        SelectedJobId = worker.CurrentJobId;
+        LogTake = 200;
+        await LoadLogsAsync();
+    }
+
+    private async Task SelectJobAsync(JobRecord job)
+    {
+        SelectedWorkerId = null;
+        SelectedJobId = job.JobId;
+        LogTake = 200;
+        await LoadLogsAsync();
+    }
+
+    private async Task LoadLogsAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SelectedJobId) || IsLoadingLogs)
+        {
+            return;
+        }
+
+        IsLoadingLogs = true;
+        try
+        {
+            var logs = await Api.GetJobLogsAsync(SelectedJobId, LogTake);
+            LogEntries = logs.OrderBy(entry => entry.TimestampUtc).ToList();
+        }
+        finally
+        {
+            IsLoadingLogs = false;
+        }
+    }
+
+    private async Task LoadMoreAsync()
+    {
+        LogTake = Math.Min(LogTake + 200, 2000);
+        await LoadLogsAsync();
+    }
+
+    private void ClearLogs()
+    {
+        LogEntries = new List<JobLogEntry>();
+    }
+
+    private void ToggleAutoRefresh()
+    {
+        AutoRefresh = !AutoRefresh;
+    }
+
+    private void StartRefreshLoop()
+    {
+        _refreshCts?.Cancel();
+        _refreshCts = new CancellationTokenSource();
+        _ = Task.Run(() => RefreshLoopAsync(_refreshCts.Token));
+    }
+
+    private async Task RefreshLoopAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(_refreshInterval);
+        while (await timer.WaitForNextTickAsync(cancellationToken))
+        {
+            if (!AutoRefresh || string.IsNullOrWhiteSpace(SelectedJobId))
+            {
+                continue;
+            }
+
+            await InvokeAsync(LoadLogsAsync);
+        }
+    }
+
+    public void Dispose()
+    {
+        _refreshCts?.Cancel();
+        _refreshCts?.Dispose();
+    }
+
+    private string GetRowClass(string workerId) =>
+        string.Equals(workerId, SelectedWorkerId, StringComparison.OrdinalIgnoreCase)
+            ? "row-selected"
+            : string.Empty;
+
+    private string GetJobClass(string jobId) =>
+        string.Equals(jobId, SelectedJobId, StringComparison.OrdinalIgnoreCase)
+            ? "list-card--active"
+            : string.Empty;
+
+    private string GetStatusLabel(WorkerRegistration worker) =>
+        IsOnline(worker) ? worker.Status.ToString() : "Offline";
+
+    private string GetStatusClass(WorkerRegistration worker) =>
+        IsOnline(worker) ? GetStatusClass(worker.Status) : "tag--offline";
+
+    private static string GetStatusClass(WorkerStatus status) => status switch
+    {
+        WorkerStatus.Running => "tag--run",
+        WorkerStatus.Busy => "tag--warn",
+        WorkerStatus.Idle => "tag--idle",
+        _ => "tag--ok"
+    };
+
+    private bool IsOnline(WorkerRegistration worker) =>
+        worker.Status != WorkerStatus.Unknown &&
+        DateTimeOffset.UtcNow - worker.LastHeartbeatUtc <= _onlineThreshold;
+
+    private static string GetJobStateClass(JobState state) => state switch
+    {
+        JobState.Failed => "tag--warn",
+        JobState.Running => "tag--run",
+        JobState.Succeeded => "tag--ok",
+        _ => "tag--idle"
+    };
+
+    private static string GetLogLevelClass(LogLevel level) => level switch
+    {
+        LogLevel.Error or LogLevel.Critical => "log-line--error",
+        LogLevel.Warning => "log-line--warn",
+        _ => "log-line--info"
+    };
+
+    private static string FormatRelative(DateTimeOffset timestamp)
+    {
+        var delta = DateTimeOffset.UtcNow - timestamp;
+        if (delta.TotalSeconds < 60)
+        {
+            return $"{Math.Max(1, delta.Seconds)}s ago";
+        }
+
+        if (delta.TotalMinutes < 60)
+        {
+            return $"{delta.Minutes}m ago";
+        }
+
+        if (delta.TotalHours < 24)
+        {
+            return $"{delta.Hours}h ago";
+        }
+
+        return $"{delta.Days}d ago";
+    }
+}

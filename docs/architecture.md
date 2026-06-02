@@ -3,7 +3,7 @@
 ## Core domains
 
 - **Job Envelope/Step Models** (`JD.Worker.Configuration`): Flattened into contracts with `IStepDefinition`, `JobRequirements`, and optional Docker build/run metadata.
-- **Worker Core** (`JD.Worker.Core`): Handles job state transitions, workspace management, registries, Docker/shell/process execution, and log publishing (with step markers such as `[step:start]`/`[step:end]` being emitted from `JobExecutor`).
+- **Worker Core** (`JD.Worker.Core`): Handles job state transitions, workspace management, registries, Docker/shell/process execution, and log publishing (with step markers such as `[step:start]`/`[step:end]` being emitted from `JobExecutor`). Job lifecycle transitions are enforced by a PatternKit-backed state machine while preserving the public `JobStateMachine` API.
 - **Orchestrator services**: API service hosts the job/workers/log endpoints plus lease/ack/nack semantics, while the web project consumes them and surfaces dashboards, payload builders, and log consoles.
 - **Aspire AppHost**: Spins up API, UI, and multiple `JD.Worker.Cli` agents with configurations for host and Docker workloads; health checks and environment wiring keep the system discoverable.
 

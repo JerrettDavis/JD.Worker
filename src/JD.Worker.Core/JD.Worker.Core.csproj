@@ -13,5 +13,6 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Logging" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="PatternKit.Core" />
   </ItemGroup>
 </Project>

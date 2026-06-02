@@ -42,6 +42,21 @@ public class JobStateMachineTests : TinyBddXunitBase
             .AssertPassed();
     }
 
+    [Scenario("PatternKit state machine permits terminal job finalization")]
+    [Fact]
+    public async Task Transition_Succeeded_To_Finalized()
+    {
+        await Given("a job in Succeeded state", () => CreateJob(JobState.Succeeded))
+            .When("transitioning to Finalized", job => _stateMachine.Transition(job, JobState.Finalized, "cleanup complete"))
+            .Then("transition should succeed", result => result.Success)
+            .And("job state should be Finalized", result => result.Job.State == JobState.Finalized)
+            .And("event should capture the terminal transition", result =>
+                result.Event?.FromState == JobState.Succeeded &&
+                result.Event.ToState == JobState.Finalized &&
+                result.Event.Message == "cleanup complete")
+            .AssertPassed();
+    }
+
     private static JobRecord CreateJob(JobState state) => new()
     {
         JobId = Guid.NewGuid().ToString("N"),

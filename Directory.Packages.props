@@ -12,13 +12,13 @@
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.1" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.1" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.1" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
     
     <!-- Configuration -->
-    <PackageVersion Include="YamlDotNet" Version="16.3.0" />
+    <PackageVersion Include="YamlDotNet" Version="18.0.0" />
     
     <!-- Persistence -->
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.9" />
     
     <!-- Docker -->
     <PackageVersion Include="Docker.DotNet" Version="3.125.15" />
@@ -29,35 +29,35 @@
     <PackageVersion Include="RabbitMQ.Client" Version="7.0.0" />
     
     <!-- CLI -->
-    <PackageVersion Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.9" />
     <PackageVersion Include="Spectre.Console" Version="0.49.1" />
 
     <!-- Design Patterns (JD Libraries) -->
     <PackageVersion Include="PatternKit" Version="1.0.0" />
-    <PackageVersion Include="PatternKit.Core" Version="0.147.1" />
+    <PackageVersion Include="PatternKit.Core" Version="0.147.2" />
 
     <!-- Orchestrator -->
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
-    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.1.0" />
-    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.1.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.7.0" />
+    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.7.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.16.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
 
     <!-- Source Link -->
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.300" />
     
     <!-- Testing -->
-    <PackageVersion Include="TinyBDD" Version="0.18.0" />
-    <PackageVersion Include="TinyBDD.Xunit" Version="0.18.0" />
+    <PackageVersion Include="TinyBDD" Version="0.19.23" />
+    <PackageVersion Include="TinyBDD.Xunit" Version="0.19.23" />
     <PackageVersion Include="TinyBDD.Extensions.DependencyInjection" Version="0.18.0" />
     <PackageVersion Include="TinyBDD.Extensions.Hosting" Version="0.18.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageVersion Include="coverlet.collector" Version="6.0.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.6.0" />
+    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <PackageVersion Include="FluentAssertions" Version="7.0.0" />
     <PackageVersion Include="NSubstitute" Version="5.3.0" />
     <PackageVersion Include="Testcontainers" Version="4.2.0" />

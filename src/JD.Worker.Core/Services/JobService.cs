@@ -52,9 +52,16 @@ public sealed class JobService : IJobService
 
         await _jobStore.SaveAsync(record, cancellationToken);
         await _scheduler.EnqueueAsync(record.JobId, cancellationToken);
-        _logger.LogInformation("Job {JobId} accepted with state {State}.", record.JobId, record.State);
+        _logger.LogInformation("Job {JobId} accepted with state {State}.", SanitizeLogValue(record.JobId), record.State);
         return record;
     }
+
+    /// <summary>
+    /// Strips CR/LF and other control characters from a value before it is written
+    /// to a log entry, preventing log-forging attacks (CWE-117 / CodeQL cs/log-forging).
+    /// </summary>
+    private static string SanitizeLogValue(string value) =>
+        value.Replace("\r\n", "").Replace("\n", "").Replace("\r", "");
 
     public Task<IReadOnlyList<JobRecord>> ListAsync(JobState? state, CancellationToken cancellationToken) =>
         _jobStore.ListAsync(state, cancellationToken);

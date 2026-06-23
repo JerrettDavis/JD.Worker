@@ -60,6 +60,8 @@
     <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
     <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
     <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <!-- Suppress TBDD010: source-gen optimization requires partial classes; the source generator produces invalid code for these patterns in TinyBDD 0.19.26 -->
+    <NoWarn>$(NoWarn);TBDD010</NoWarn>
   </PropertyGroup>
 
   <!-- Orchestrator projects are not AOT-trimmed -->

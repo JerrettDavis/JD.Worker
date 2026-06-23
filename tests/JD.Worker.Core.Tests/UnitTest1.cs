@@ -11,7 +11,7 @@ using Xunit.Abstractions;
 namespace JD.Worker.Core.Tests;
 
 [Feature("Job State Machine")]
-public partial class JobStateMachineTests : TinyBddXunitBase
+public class JobStateMachineTests : TinyBddXunitBase
 {
     private readonly JobStateMachine _stateMachine = new();
 
@@ -67,7 +67,7 @@ public partial class JobStateMachineTests : TinyBddXunitBase
 }
 
 [Feature("Step Runners")]
-public partial class StepRunnerTests : TinyBddXunitBase
+public class StepRunnerTests : TinyBddXunitBase
 {
     public StepRunnerTests(ITestOutputHelper output)
         : base(output)

@@ -6,42 +6,41 @@ using JD.Worker.Connectors.Local;
 using JD.Worker.Core;
 using Microsoft.Extensions.Hosting;
 
-var root = new RootCommand("JD.Worker CLI");
-
 var configOption = new Option<FileInfo>("--config", "Path to worker configuration file")
 {
-    IsRequired = true
+    Required = true
 };
 
 var validate = new Command("validate", "Validate a worker configuration file");
-validate.AddOption(configOption);
-validate.SetHandler(async (FileInfo configFile) =>
+validate.Options.Add(configOption);
+validate.SetAction(async (ParseResult parseResult) =>
 {
+    var configFile = parseResult.GetValue(configOption)!;
     var config = await LoadConfigAsync(configFile);
     if (config is null)
     {
-        Environment.ExitCode = 2;
-        return;
+        return 2;
     }
-
     Console.WriteLine("Configuration is valid.");
-}, configOption);
+    return 0;
+});
 
 var doctor = new Command("doctor", "Run system diagnostics");
-doctor.SetHandler(() =>
+doctor.SetAction((_) =>
 {
     Console.WriteLine("Doctor diagnostics are not implemented yet.");
+    return 0;
 });
 
 var run = new Command("run", "Start worker host");
-run.AddOption(configOption);
-run.SetHandler(async (FileInfo configFile) =>
+run.Options.Add(configOption);
+run.SetAction(async (ParseResult parseResult) =>
 {
+    var configFile = parseResult.GetValue(configOption)!;
     var config = await LoadConfigAsync(configFile);
     if (config is null)
     {
-        Environment.ExitCode = 2;
-        return;
+        return 2;
     }
 
     using var host = Host.CreateDefaultBuilder()
@@ -54,13 +53,15 @@ run.SetHandler(async (FileInfo configFile) =>
         .Build();
 
     await host.RunAsync();
-}, configOption);
+    return 0;
+});
 
-root.AddCommand(validate);
-root.AddCommand(doctor);
-root.AddCommand(run);
+var root = new RootCommand("JD.Worker CLI");
+root.Subcommands.Add(validate);
+root.Subcommands.Add(doctor);
+root.Subcommands.Add(run);
 
-return await root.InvokeAsync(args);
+return await root.Parse(args).InvokeAsync();
 
 static IConfigParser CreateParser(FileInfo configFile)
 {

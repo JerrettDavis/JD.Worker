@@ -11,7 +11,7 @@ using Xunit.Abstractions;
 namespace JD.Worker.Configuration.Tests;
 
 [Feature("Configuration Parsing")]
-public class ConfigurationParsingTests : TinyBddXunitBase
+public partial class ConfigurationParsingTests : TinyBddXunitBase
 {
     private readonly IConfigParser _jsonParser = new JsonConfigParser();
     private readonly IConfigParser _yamlParser = new YamlConfigParser();
@@ -284,7 +284,7 @@ public class ConfigurationParsingTests : TinyBddXunitBase
 }
 
 [Feature("Configuration Validation")]
-public class ConfigurationValidationTests : TinyBddXunitBase
+public partial class ConfigurationValidationTests : TinyBddXunitBase
 {
     private readonly IConfigValidator _validator = new ConfigValidationPipeline();
 

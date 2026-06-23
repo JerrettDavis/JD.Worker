@@ -96,12 +96,6 @@
   </PropertyGroup>
 
 
-  <!-- NuGet Audit Suppressions -->
-  <!-- SQLitePCLRaw.lib.e_sqlite3 GHSA-2m69-gcr7-jv3q: no patched version exists (last_affected=2.1.11); suppress until upstream publishes a fix -->
-  <ItemGroup>
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
-  </ItemGroup>
-
   <ItemGroup Condition="Exists('$(MSBuildThisFileDirectory).git')">
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All"/>
   </ItemGroup>

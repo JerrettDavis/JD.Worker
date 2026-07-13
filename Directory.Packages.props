@@ -21,7 +21,7 @@
     <!-- MessagePack: fixes GHSA-hv8m-jj95-wg3x (fixed in 2.5.301) -->
     <PackageVersion Include="MessagePack" Version="2.5.302" />
     <!-- SQLitePCLRaw.lib.e_sqlite3: fixes GHSA-2m69-gcr7-jv3q (patched in 3.50.3) -->
-    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
+    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
     <!-- Microsoft.OpenApi: fixes GHSA-v5pm-xwqc-g5wc (patched in 2.7.5) -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
 
@@ -42,7 +42,7 @@
 
     <!-- Design Patterns (JD Libraries) -->
     <PackageVersion Include="PatternKit" Version="1.0.0" />
-    <PackageVersion Include="PatternKit.Core" Version="0.147.7" />
+    <PackageVersion Include="PatternKit.Core" Version="0.147.10" />
 
     <!-- Orchestrator -->
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
@@ -52,14 +52,14 @@
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.16.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.16.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.16.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.16.0" />
 
     <!-- Source Link -->
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.300" />
     
     <!-- Testing -->
-    <PackageVersion Include="TinyBDD" Version="0.19.27" />
-    <PackageVersion Include="TinyBDD.Xunit" Version="0.19.27" />
+    <PackageVersion Include="TinyBDD" Version="0.19.28" />
+    <PackageVersion Include="TinyBDD.Xunit" Version="0.19.28" />
     <PackageVersion Include="TinyBDD.Extensions.DependencyInjection" Version="0.18.0" />
     <PackageVersion Include="TinyBDD.Extensions.Hosting" Version="0.18.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />

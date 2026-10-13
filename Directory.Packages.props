@@ -42,7 +42,7 @@
 
     <!-- Design Patterns (JD Libraries) -->
     <PackageVersion Include="PatternKit" Version="1.0.0" />
-    <PackageVersion Include="PatternKit.Core" Version="0.147.27" />
+    <PackageVersion Include="PatternKit.Core" Version="0.147.28" />
 
     <!-- Orchestrator -->
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
@@ -63,7 +63,7 @@
     <PackageVersion Include="TinyBDD.Extensions.DependencyInjection" Version="0.18.0" />
     <PackageVersion Include="TinyBDD.Extensions.Hosting" Version="0.18.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageVersion Include="coverlet.collector" Version="10.1.0" />
     <PackageVersion Include="FluentAssertions" Version="7.0.0" />

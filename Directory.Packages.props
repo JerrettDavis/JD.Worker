@@ -18,8 +18,8 @@
     <PackageVersion Include="YamlDotNet" Version="18.1.0" />
     
     <!-- Security: transitive version pins to address known vulnerabilities -->
-    <!-- MessagePack: fixes GHSA-hv8m-jj95-wg3x (fixed in 2.5.301) -->
-    <PackageVersion Include="MessagePack" Version="2.5.302" />
+    <!-- MessagePack: fixes GHSA-hv8m-jj95-wg3x, GHSA-qhrr-8q5h-9q3h (patched in 2.5.307) -->
+    <PackageVersion Include="MessagePack" Version="2.5.307" />
     <!-- SQLitePCLRaw.lib.e_sqlite3: fixes GHSA-2m69-gcr7-jv3q (patched in 3.50.3) -->
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
     <!-- Microsoft.OpenApi: fixes GHSA-v5pm-xwqc-g5wc (patched in 2.7.5) -->

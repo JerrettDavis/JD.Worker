@@ -12,7 +12,7 @@
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.1" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.1" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.1" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.14" />
     
     <!-- Configuration -->
     <PackageVersion Include="YamlDotNet" Version="18.1.0" />
@@ -26,7 +26,7 @@
     <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
 
     <!-- Persistence -->
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.14" />
     
     <!-- Docker -->
     <PackageVersion Include="Docker.DotNet" Version="3.125.15" />
@@ -37,7 +37,7 @@
     <PackageVersion Include="RabbitMQ.Client" Version="7.0.0" />
     
     <!-- CLI -->
-    <PackageVersion Include="System.CommandLine" Version="2.0.13" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.14" />
     <PackageVersion Include="Spectre.Console" Version="0.49.1" />
 
     <!-- Design Patterns (JD Libraries) -->
@@ -55,11 +55,11 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.20.1" />
 
     <!-- Source Link -->
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.402" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.403" />
     
     <!-- Testing -->
-    <PackageVersion Include="TinyBDD" Version="0.19.46" />
-    <PackageVersion Include="TinyBDD.Xunit" Version="0.19.46" />
+    <PackageVersion Include="TinyBDD" Version="0.19.47" />
+    <PackageVersion Include="TinyBDD.Xunit" Version="0.19.47" />
     <PackageVersion Include="TinyBDD.Extensions.DependencyInjection" Version="0.18.0" />
     <PackageVersion Include="TinyBDD.Extensions.Hosting" Version="0.18.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />

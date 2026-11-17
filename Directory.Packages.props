@@ -10,7 +10,7 @@
     <!-- .NET SDK Packages -->
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="11.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0" />
     
@@ -23,7 +23,7 @@
     <!-- SQLitePCLRaw.lib.e_sqlite3: fixes GHSA-2m69-gcr7-jv3q (patched in 3.50.3) -->
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
     <!-- Microsoft.OpenApi: fixes GHSA-v5pm-xwqc-g5wc (patched in 2.7.5) -->
-    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.13.0" />
 
     <!-- Persistence -->
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="11.0.0" />
